@@ -1,13 +1,22 @@
 import { useState } from 'react';
-import { LayoutDashboard, Users, AlertTriangle, Activity, Settings, Menu, X, Bell, LogOut, Shield } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { LayoutDashboard, Users, AlertTriangle, Activity, Settings, Menu, X, Bell, LogOut, Shield, Lock, Database, Key } from 'lucide-react';
 import { AdminOverview } from '@/components/admin/AdminOverview';
 import { AdminTransactions } from '@/components/admin/AdminTransactions';
 import { AdminDisputes } from '@/components/admin/AdminDisputes';
 import { AdminUsers } from '@/components/admin/AdminUsers';
+import { useAuth } from '@/contexts/AuthContext';
 
 export function AdminDashboard() {
+    const navigate = useNavigate();
+    const { user, logout } = useAuth();
     const [activeTab, setActiveTab] = useState<'overview' | 'transactions' | 'disputes' | 'users' | 'settings'>('overview');
     const [sidebarOpen, setSidebarOpen] = useState(true);
+
+    const handleLogout = async () => {
+        await logout();
+        navigate('/');
+    };
 
     const navItems = [
         { id: 'overview', label: 'Overview', icon: LayoutDashboard },
@@ -55,17 +64,19 @@ export function AdminDashboard() {
                 </nav>
 
                 <div className="p-4 border-t border-gray-800">
-                    <button className="w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium text-red-400 hover:bg-red-500/10 hover:text-red-300 transition">
+                    <button
+                        onClick={handleLogout}
+                        className="w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium text-red-400 hover:bg-red-500/10 hover:text-red-300 transition">
                         <LogOut size={20} />
                         Logout
                     </button>
                     <div className="mt-4 flex items-center gap-3 px-2">
                         <div className="w-8 h-8 bg-gray-700 rounded-full flex items-center justify-center font-bold text-xs">
-                            AD
+                            {user?.name.charAt(0).toUpperCase()}
                         </div>
                         <div>
-                            <p className="text-sm font-bold">Admin User</p>
-                            <p className="text-xs text-gray-500">Super Admin</p>
+                            <p className="text-sm font-bold">{user?.name}</p>
+                            <p className="text-xs text-gray-500">Administrator</p>
                         </div>
                     </div>
                 </div>
@@ -97,10 +108,89 @@ export function AdminDashboard() {
                         {activeTab === 'disputes' && <AdminDisputes />}
                         {activeTab === 'users' && <AdminUsers />}
                         {activeTab === 'settings' && (
-                            <div className="text-center py-20 bg-white rounded-xl border border-gray-200 border-dashed text-gray-500">
-                                <Settings size={48} className="mx-auto mb-4 opacity-50" />
-                                <p>Global Platform Settings</p>
-                                <p className="text-sm">(Coming Soon)</p>
+                            <div className="space-y-6">
+                                <h2 className="text-2xl font-bold text-gray-800">Platform Settings</h2>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    {/* Security Settings */}
+                                    <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 space-y-4">
+                                        <div className="flex items-center gap-3 pb-4 border-b border-gray-200">
+                                            <Lock className="text-green-600" size={24} />
+                                            <h3 className="text-lg font-bold text-gray-800">Security</h3>
+                                        </div>
+                                        <div className="space-y-3">
+                                            <button className="w-full px-4 py-3 bg-gray-50 hover:bg-gray-100 rounded-lg border border-gray-200 text-left text-sm font-medium text-gray-700 transition">
+                                                Change Admin Password
+                                            </button>
+                                            <button className="w-full px-4 py-3 bg-gray-50 hover:bg-gray-100 rounded-lg border border-gray-200 text-left text-sm font-medium text-gray-700 transition">
+                                                Enable Two-Factor Authentication
+                                            </button>
+                                            <button className="w-full px-4 py-3 bg-gray-50 hover:bg-gray-100 rounded-lg border border-gray-200 text-left text-sm font-medium text-gray-700 transition">
+                                                Manage Session Tokens
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {/* API Keys */}
+                                    <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 space-y-4">
+                                        <div className="flex items-center gap-3 pb-4 border-b border-gray-200">
+                                            <Key className="text-blue-600" size={24} />
+                                            <h3 className="text-lg font-bold text-gray-800">API Keys</h3>
+                                        </div>
+                                        <div className="space-y-3">
+                                            <button className="w-full px-4 py-3 bg-gray-50 hover:bg-gray-100 rounded-lg border border-gray-200 text-left text-sm font-medium text-gray-700 transition">
+                                                Generate New API Key
+                                            </button>
+                                            <button className="w-full px-4 py-3 bg-gray-50 hover:bg-gray-100 rounded-lg border border-gray-200 text-left text-sm font-medium text-gray-700 transition">
+                                                Revoke API Keys
+                                            </button>
+                                            <button className="w-full px-4 py-3 bg-gray-50 hover:bg-gray-100 rounded-lg border border-gray-200 text-left text-sm font-medium text-gray-700 transition">
+                                                View API Documentation
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {/* Database Settings */}
+                                    <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 space-y-4">
+                                        <div className="flex items-center gap-3 pb-4 border-b border-gray-200">
+                                            <Database className="text-purple-600" size={24} />
+                                            <h3 className="text-lg font-bold text-gray-800">Database</h3>
+                                        </div>
+                                        <div className="space-y-3">
+                                            <button className="w-full px-4 py-3 bg-gray-50 hover:bg-gray-100 rounded-lg border border-gray-200 text-left text-sm font-medium text-gray-700 transition">
+                                                Database Status
+                                            </button>
+                                            <button className="w-full px-4 py-3 bg-gray-50 hover:bg-gray-100 rounded-lg border border-gray-200 text-left text-sm font-medium text-gray-700 transition">
+                                                Backup Database
+                                            </button>
+                                            <button className="w-full px-4 py-3 bg-gray-50 hover:bg-gray-100 rounded-lg border border-gray-200 text-left text-sm font-medium text-gray-700 transition">
+                                                View Database Logs
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {/* System Information */}
+                                    <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 space-y-4">
+                                        <div className="flex items-center gap-3 pb-4 border-b border-gray-200">
+                                            <Shield className="text-green-600" size={24} />
+                                            <h3 className="text-lg font-bold text-gray-800">System</h3>
+                                        </div>
+                                        <div className="space-y-3 text-sm">
+                                            <div className="flex justify-between">
+                                                <span className="text-gray-600">Platform Version</span>
+                                                <span className="font-semibold text-gray-900">1.0.0</span>
+                                            </div>
+                                            <div className="flex justify-between">
+                                                <span className="text-gray-600">Status</span>
+                                                <span className="font-semibold text-green-600">Operational</span>
+                                            </div>
+                                            <div className="flex justify-between">
+                                                <span className="text-gray-600">Last Updated</span>
+                                                <span className="font-semibold text-gray-900">{new Date().toLocaleDateString()}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         )}
                     </div>

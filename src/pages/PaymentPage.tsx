@@ -4,7 +4,32 @@ import { SellerActions } from "@/components/SellerActions";
 import { SellerDeliveryActions } from "@/components/SellerDeliveryActions";
 import { BuyerConfirmActions } from "@/components/BuyerConfirmActions";
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:4000";
+// Construct API base URL - backend runs on port 8000
+const API_BASE = import.meta.env.VITE_API_BASE_URL || (() => {
+  if (typeof window !== 'undefined') {
+    try {
+      const url = new URL(window.location.href);
+      const hostname = url.hostname;
+      const protocol = url.protocol;
+      
+      // In Replit, convert dev domain from 5000 port to 8000 port
+      if (hostname.includes('replit.dev')) {
+        const backendDomain = hostname.replace(/-5000-/, '-8000-');
+        return `${protocol}//${backendDomain}`;
+      }
+      
+      // For localhost/127.0.0.1 development - use http://127.0.0.1:8000
+      if (hostname === 'localhost' || hostname === '127.0.0.1') {
+        return `${protocol}//127.0.0.1:8000`;
+      }
+      
+      return `${protocol}//${hostname}:8000`;
+    } catch {
+      return 'http://127.0.0.1:8000';
+    }
+  }
+  return 'http://127.0.0.1:8000';
+})();
 
 interface PaymentDetails {
   transaction_id: string;
@@ -53,13 +78,34 @@ export function PaymentPage() {
       }
 
       try {
-        const res = await fetch(`${API_BASE}/api/v1/payments/${transactionId}`);
+        const res = await fetch(`${API_BASE}/api/v1/transactions/${transactionId}`);
         if (!res.ok) {
           setError("Payment link not found");
           setLoading(false);
           return;
         }
-        const payment = await res.json();
+        const response = await res.json();
+        if (!response.success || !response.data) {
+          setError(response.error || "Payment link not found");
+          setLoading(false);
+          return;
+        }
+        // Map transaction data to payment details format
+        const transaction = response.data;
+        const payment: PaymentDetails = {
+          transaction_id: transaction.id,
+          status: transaction.status,
+          amount: transaction.amount,
+          currency: transaction.currency || "KES",
+          seller_contact: transaction.seller?.phone || "",
+          seller_payout_contact: transaction.seller?.phone || null,
+          product_name: transaction.itemName,
+          description: transaction.description,
+          expires_at: transaction.expiresAt,
+          escrowed_amount: transaction.amount,
+          delivered_at: transaction.deliveredAt,
+          delivery_proof_urls: transaction.deliveryProofUrls,
+        };
         setData(payment);
       } catch {
         setError("Failed to load payment details");

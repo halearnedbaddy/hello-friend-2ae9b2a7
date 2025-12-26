@@ -1,6 +1,30 @@
 import { useState } from "react";
+import { api } from "@/services/api";
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:4000";
+// Construct API base URL - backend runs on port 8000
+const API_BASE = import.meta.env.VITE_API_BASE_URL || (() => {
+  if (typeof window !== 'undefined') {
+    try {
+      const url = new URL(window.location.href);
+      const hostname = url.hostname;
+      const protocol = url.protocol;
+      
+      if (hostname.includes('replit.dev')) {
+        const backendDomain = hostname.replace(/-5000-/, '-8000-');
+        return `${protocol}//${backendDomain}`;
+      }
+      
+      if (hostname === 'localhost' || hostname === '127.0.0.1') {
+        return `${protocol}//127.0.0.1:8000`;
+      }
+      
+      return `${protocol}//${hostname}:8000`;
+    } catch {
+      return 'http://127.0.0.1:8000';
+    }
+  }
+  return 'http://127.0.0.1:8000';
+})();
 
 interface Props {
   transactionId: string;
@@ -34,21 +58,13 @@ export function SellerActions({ transactionId, initialStatus }: Props) {
     }
 
     try {
-      const res = await fetch(`${API_BASE}/api/v1/payments/${transactionId}/accept`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          seller_payout_contact: payoutContact || undefined,
-        }),
-      });
-
-      const body = await res.json().catch(() => ({}));
-
-      if (!res.ok) {
-        throw new Error(body.error || `Request failed with ${res.status}`);
+      const response = await api.acceptOrder(transactionId);
+      
+      if (!response.success) {
+        throw new Error(response.error || 'Failed to accept order');
       }
 
-      setStatus(body.status ?? "ACTIVE");
+      setStatus(response.data?.status ?? "ACCEPTED");
       setMessage("Order accepted. Funds remain in escrow until delivery is marked.");
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : "Something went wrong";

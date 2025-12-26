@@ -1,17 +1,45 @@
-import { Search, MoreVertical, BadgeCheck, ShieldAlert } from 'lucide-react';
+import { Search, MoreVertical, BadgeCheck, ShieldAlert, Loader } from 'lucide-react';
 import { useState } from 'react';
+import { useAdminData } from '@/hooks/useAdminData';
 
 export function AdminUsers() {
-    const [activeTab, setActiveTab] = useState<'sellers' | 'buyers'>('sellers');
+    const [activeTab, setActiveTab] = useState<'SELLER' | 'BUYER'>('SELLER');
+    const [searchTerm, setSearchTerm] = useState('');
+    const { users, loading, error } = useAdminData();
 
-    const users = [
-        { id: "USR-001", name: "Tech Haven KE", type: "seller", status: "verified", joinDate: "Jan 12, 2023", riskScore: "Low" },
-        { id: "USR-002", name: "Glamour Trends", type: "seller", status: "pending", joinDate: "Dec 20, 2023", riskScore: "Medium" },
-        { id: "USR-003", name: "John Doe", type: "buyer", status: "active", joinDate: "Mar 05, 2023", riskScore: "Low" },
-        { id: "USR-004", name: "Suspicious User", type: "buyer", status: "flagged", joinDate: "Today", riskScore: "High" },
-    ];
+    const filteredUsers = users.filter(u =>
+        u.role === activeTab &&
+        (u.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            u.phone.includes(searchTerm) ||
+            u.id.includes(searchTerm))
+    );
 
-    const filteredUsers = users.filter(u => u.type === activeTab.slice(0, -1)); // simple plural to singular mapping
+    const getRiskScore = (user: any) => {
+        if (!user.isActive) return 'Critical';
+        if (!user.isVerified) return 'Medium';
+        return 'Low';
+    };
+
+    const getStatusColor = (isActive: boolean) => {
+        return isActive ? 'active' : 'inactive';
+    };
+
+    if (loading) {
+        return (
+            <div className="flex items-center justify-center py-12">
+                <Loader size={32} className="animate-spin text-green-600" />
+            </div>
+        );
+    }
+
+    if (error) {
+        return (
+            <div className="bg-red-50 border border-red-200 rounded-xl p-6 text-red-700">
+                <p className="font-bold">Failed to load users</p>
+                <p className="text-sm">{error}</p>
+            </div>
+        );
+    }
 
     return (
         <div className="space-y-6">
@@ -21,16 +49,16 @@ export function AdminUsers() {
                 <div className="border-b border-gray-200">
                     <nav className="flex gap-6 px-6">
                         <button
-                            onClick={() => setActiveTab('sellers')}
-                            className={`py-4 text-sm font-bold border-b-2 transition ${activeTab === 'sellers' ? 'border-green-600 text-green-700' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+                            onClick={() => setActiveTab('SELLER')}
+                            className={`py-4 text-sm font-bold border-b-2 transition ${activeTab === 'SELLER' ? 'border-green-600 text-green-700' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
                         >
-                            Sellers
+                            Sellers ({users.filter(u => u.role === 'SELLER').length})
                         </button>
                         <button
-                            onClick={() => setActiveTab('buyers')}
-                            className={`py-4 text-sm font-bold border-b-2 transition ${activeTab === 'buyers' ? 'border-green-600 text-green-700' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+                            onClick={() => setActiveTab('BUYER')}
+                            className={`py-4 text-sm font-bold border-b-2 transition ${activeTab === 'BUYER' ? 'border-green-600 text-green-700' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
                         >
-                            Buyers
+                            Buyers ({users.filter(u => u.role === 'BUYER').length})
                         </button>
                     </nav>
                 </div>
@@ -40,7 +68,9 @@ export function AdminUsers() {
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
                         <input
                             type="text"
-                            placeholder="Search users..."
+                            placeholder="Search by name, phone, or ID..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
                             className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:border-green-500 text-sm"
                         />
                     </div>
@@ -51,51 +81,55 @@ export function AdminUsers() {
                         <tr>
                             <th className="px-6 py-4">User Details</th>
                             <th className="px-6 py-4">Status</th>
-                            <th className="px-6 py-4">Risk Score</th>
+                            <th className="px-6 py-4">Balance</th>
                             <th className="px-6 py-4">Joined</th>
                             <th className="px-6 py-4 text-right">Actions</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
-                        {filteredUsers.map((user) => (
-                            <tr key={user.id} className="hover:bg-gray-50 transition">
-                                <td className="px-6 py-4">
-                                    <div>
-                                        <div className="flex items-center gap-2">
-                                            <p className="font-bold text-gray-900">{user.name}</p>
-                                            {user.status === 'verified' && <BadgeCheck size={16} className="text-blue-500" />}
+                        {filteredUsers.length > 0 ? (
+                            filteredUsers.map((user) => (
+                                <tr key={user.id} className="hover:bg-gray-50 transition">
+                                    <td className="px-6 py-4">
+                                        <div>
+                                            <div className="flex items-center gap-2">
+                                                <p className="font-bold text-gray-900">{user.name}</p>
+                                                {user.isVerified && <BadgeCheck size={16} className="text-blue-500" />}
+                                            </div>
+                                            <p className="text-xs text-gray-500">{user.phone}</p>
                                         </div>
-                                        <p className="text-xs text-gray-500">{user.id}</p>
-                                    </div>
-                                </td>
-                                <td className="px-6 py-4">
-                                    <span className={`px-2 py-1 rounded-full text-xs font-bold uppercase ${user.status === 'verified' ? 'bg-blue-100 text-blue-700' :
-                                            user.status === 'active' ? 'bg-green-100 text-green-700' :
-                                                user.status === 'flagged' ? 'bg-red-100 text-red-700' :
-                                                    'bg-yellow-100 text-yellow-700'
-                                        }`}>
-                                        {user.status}
-                                    </span>
-                                </td>
-                                <td className="px-6 py-4">
-                                    <div className="flex items-center gap-2">
-                                        {user.riskScore === 'High' && <ShieldAlert size={16} className="text-red-500" />}
-                                        <span className={`font-semibold ${user.riskScore === 'High' ? 'text-red-600' : 'text-gray-700'
+                                    </td>
+                                    <td className="px-6 py-4">
+                                        <span className={`px-2 py-1 rounded-full text-xs font-bold uppercase ${user.isActive && user.isVerified ? 'bg-green-100 text-green-700' :
+                                                user.isActive ? 'bg-blue-100 text-blue-700' :
+                                                    'bg-red-100 text-red-700'
                                             }`}>
-                                            {user.riskScore}
+                                            {user.isActive ? (user.isVerified ? 'Verified' : 'Active') : 'Inactive'}
                                         </span>
-                                    </div>
-                                </td>
-                                <td className="px-6 py-4 text-sm text-gray-500">
-                                    {user.joinDate}
-                                </td>
-                                <td className="px-6 py-4 text-right">
-                                    <button className="text-gray-400 hover:text-gray-600">
-                                        <MoreVertical size={20} />
-                                    </button>
+                                    </td>
+                                    <td className="px-6 py-4">
+                                        <div className="text-sm">
+                                            <p className="font-semibold text-gray-900">KES {(user.wallet?.availableBalance || 0).toLocaleString()}</p>
+                                            <p className="text-xs text-gray-500">Pending: {(user.wallet?.pendingBalance || 0).toLocaleString()}</p>
+                                        </div>
+                                    </td>
+                                    <td className="px-6 py-4 text-sm text-gray-500">
+                                        {new Date(user.memberSince).toLocaleDateString()}
+                                    </td>
+                                    <td className="px-6 py-4 text-right">
+                                        <button className="text-gray-400 hover:text-gray-600">
+                                            <MoreVertical size={20} />
+                                        </button>
+                                    </td>
+                                </tr>
+                            ))
+                        ) : (
+                            <tr>
+                                <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
+                                    No {activeTab.toLowerCase()}s found
                                 </td>
                             </tr>
-                        ))}
+                        )}
                     </tbody>
                 </table>
             </div>

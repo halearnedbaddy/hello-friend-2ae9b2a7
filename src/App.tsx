@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { NotificationProvider } from "@/contexts/NotificationContext";
 import { PaymentPage } from "./pages/PaymentPage";
 import { HomePage } from "./pages/HomePage";
 import { SellerDashboard } from "./pages/SellerDashboard";
@@ -13,6 +14,7 @@ import { NotFoundPage } from "./pages/NotFoundPage";
 function App() {
   return (
     <AuthProvider>
+      <NotificationProvider>
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<HomePage />} />
@@ -26,6 +28,7 @@ function App() {
           <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </BrowserRouter>
+      </NotificationProvider>
     </AuthProvider>
   );
 }

@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import rateLimit from 'express-rate-limit';
+import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import helmet from 'helmet';
 import crypto from 'crypto';
 
@@ -49,8 +49,9 @@ export const otpRateLimiter = rateLimit({
     code: 'OTP_RATE_LIMIT',
   },
   keyGenerator: (req) => {
-    // Rate limit by phone number if provided
-    return req.body.phone || req.ip || 'unknown';
+    // Rate limit by phone number if provided, otherwise use IP
+    const phone = (req.body as any)?.phone;
+    return phone || req.ip || 'unknown';
   },
 });
 
@@ -143,7 +144,7 @@ export const validateCSRF = (req: Request, res: Response, next: NextFunction) =>
   }
 
   const token = req.headers['x-csrf-token'] as string;
-  const sessionId = req.sessionID || req.user?.userId || req.ip || 'anonymous';
+  const sessionId = req.user?.userId || req.ip || 'anonymous';
 
   if (!token || !csrfProtection.validateToken(sessionId, token)) {
     return res.status(403).json({

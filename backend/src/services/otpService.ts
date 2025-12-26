@@ -132,7 +132,6 @@ class OTPService {
           code,
           purpose,
           attempts: 0,
-          maxAttempts: this.MAX_ATTEMPTS,
           expiresAt,
         },
       });
@@ -172,7 +171,7 @@ class OTPService {
           where: {
             phone,
             purpose,
-            isUsed: false,
+            verified: false,
             expiresAt: { gte: new Date() },
           },
           orderBy: { createdAt: 'desc' },
@@ -215,7 +214,7 @@ class OTPService {
         }
 
         await prisma.oTP.updateMany({
-          where: { phone, purpose, isUsed: false },
+          where: { phone, purpose, verified: false },
           data: { attempts: { increment: 1 } },
         });
 
@@ -234,8 +233,8 @@ class OTPService {
       }
 
       await prisma.oTP.updateMany({
-        where: { phone, purpose, isUsed: false },
-        data: { isUsed: true, usedAt: new Date() },
+        where: { phone, purpose, verified: false },
+        data: { verified: true },
       });
 
       return { success: true };
@@ -254,7 +253,7 @@ class OTPService {
         where: {
           OR: [
             { expiresAt: { lt: new Date() } },
-            { isUsed: true, usedAt: { lt: new Date(Date.now() - 24 * 60 * 60 * 1000) } },
+            { verified: true, createdAt: { lt: new Date(Date.now() - 24 * 60 * 60 * 1000) } },
           ],
         },
       });
@@ -278,8 +277,8 @@ class OTPService {
       }
 
       await prisma.oTP.updateMany({
-        where: { phone, isUsed: false },
-        data: { isUsed: true, usedAt: new Date() },
+        where: { phone, verified: false },
+        data: { verified: true },
       });
     } catch (error) {
       console.error('Error invalidating OTPs:', error);

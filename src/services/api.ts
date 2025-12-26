@@ -1,23 +1,29 @@
-git fetch origin
-git checkout -b fix/api-base-empty-response origin/main
-
-cat > src/services/api.ts <<'EOF'
 // Construct API base URL - backend runs on port 8000
 const API_BASE = import.meta.env.VITE_API_BASE_URL || (() => {
   if (typeof window !== 'undefined') {
     try {
-      // Build a base URL that uses the same protocol/hostname as the frontend but forces port 8000.
-      // This avoids depending on a port being present in window.location.origin.
       const url = new URL(window.location.href);
-      const protocol = url.protocol; // includes trailing :
       const hostname = url.hostname;
+      const protocol = url.protocol;
+      
+      // In Replit, convert dev domain from 5000 port to 8000 port
+      // E.g., c4077ec9-...-5000-...picard.replit.dev -> c4077ec9-...-8000-...picard.replit.dev
+      if (hostname.includes('replit.dev')) {
+        const backendDomain = hostname.replace(/-5000-/, '-8000-');
+        return `${protocol}//${backendDomain}`;
+      }
+      
+      // For localhost/127.0.0.1 development - use http://127.0.0.1:8000
+      if (hostname === 'localhost' || hostname === '127.0.0.1') {
+        return `${protocol}//127.0.0.1:8000`;
+      }
+      
       return `${protocol}//${hostname}:8000`;
     } catch {
-      // Fallback to origin if URL parsing fails
-      return window.location.origin;
+      return 'http://127.0.0.1:8000';
     }
   }
-  return 'http://localhost:8000';
+  return 'http://127.0.0.1:8000';
 })();
 
 interface ApiResponse<T = unknown> {
@@ -339,5 +345,3 @@ class ApiService {
 }
 
 export const api = new ApiService();
-EOF
-

@@ -1,4 +1,4 @@
-import jwt from 'jsonwebtoken';
+import jwt, { SignOptions } from 'jsonwebtoken';
 import { prisma } from '../config/database';
 import crypto from 'crypto';
 
@@ -30,11 +30,12 @@ class JWTService {
     deviceInfo?: { deviceId?: string; userAgent?: string; ipAddress?: string }
   ): Promise<TokenPair> {
     // Generate access token (short-lived)
-    const accessToken = jwt.sign(payload, this.ACCESS_SECRET, {
+    const accessTokenOptions = {
       expiresIn: this.ACCESS_EXPIRY,
       issuer: 'swiftline-api',
       audience: 'swiftline-client',
-    });
+    } as SignOptions;
+    const accessToken = jwt.sign(payload, this.ACCESS_SECRET, accessTokenOptions);
 
     // Generate refresh token (long-lived)
     const refreshTokenPayload = {
@@ -42,11 +43,12 @@ class JWTService {
       tokenId: crypto.randomUUID(),
     };
 
-    const refreshToken = jwt.sign(refreshTokenPayload, this.REFRESH_SECRET, {
+    const refreshTokenOptions = {
       expiresIn: this.REFRESH_EXPIRY,
       issuer: 'swiftline-api',
       audience: 'swiftline-client',
-    });
+    } as SignOptions;
+    const refreshToken = jwt.sign(refreshTokenPayload, this.REFRESH_SECRET, refreshTokenOptions);
 
     // Store refresh token in database
     const expiresAt = new Date();
@@ -161,6 +163,11 @@ class JWTService {
       }
 
       // Generate new access token
+      const accessTokenOptions = {
+        expiresIn: this.ACCESS_EXPIRY,
+        issuer: 'swiftline-api',
+        audience: 'swiftline-client',
+      } as SignOptions;
       const accessToken = jwt.sign(
         {
           userId: user.id,
@@ -169,11 +176,7 @@ class JWTService {
           role: user.role,
         },
         this.ACCESS_SECRET,
-        {
-          expiresIn: this.ACCESS_EXPIRY,
-          issuer: 'swiftline-api',
-          audience: 'swiftline-client',
-        }
+        accessTokenOptions
       );
 
       return {
@@ -193,7 +196,6 @@ class JWTService {
       where: { token },
       data: {
         isRevoked: true,
-        revokedAt: new Date(),
       },
     });
   }
@@ -209,7 +211,6 @@ class JWTService {
       },
       data: {
         isRevoked: true,
-        revokedAt: new Date(),
       },
     });
   }
@@ -224,7 +225,7 @@ class JWTService {
           { expiresAt: { lt: new Date() } },
           {
             isRevoked: true,
-            revokedAt: { lt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) }, // 30 days old
+            expiresAt: { lt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) }, // 30 days old
           },
         ],
       },
@@ -266,7 +267,6 @@ class JWTService {
       },
       data: {
         isRevoked: true,
-        revokedAt: new Date(),
       },
     });
   }

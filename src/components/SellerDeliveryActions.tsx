@@ -1,6 +1,5 @@
 import { useState } from "react";
-
-const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:4000";
+import { api } from "@/services/api";
 
 interface Props {
   transactionId: string;
@@ -14,7 +13,7 @@ export function SellerDeliveryActions({ transactionId, initialStatus }: Props) {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  if (status !== "ACTIVE" && status !== "DELIVERED") {
+  if (status !== "ACCEPTED" && status !== "SHIPPED" && status !== "DELIVERED") {
     return null;
   }
 
@@ -39,23 +38,19 @@ export function SellerDeliveryActions({ transactionId, initialStatus }: Props) {
         .map((u) => u.trim())
         .filter(Boolean);
 
-      const res = await fetch(
-        `${API_BASE}/api/v1/payments/${transactionId}/mark-delivered`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ evidence_urls: urls.length ? urls : undefined }),
-        }
-      );
+      // Use shipping endpoint to mark as delivered
+      const response = await api.addShippingInfo(transactionId, {
+        courierName: "Self-delivery",
+        trackingNumber: `DEL-${Date.now()}`,
+        notes: urls.length > 0 ? `Delivery proof: ${urls.join(", ")}` : undefined,
+      });
 
-      const body = await res.json().catch(() => ({}));
-
-      if (!res.ok) {
-        throw new Error(body.error || `Request failed with ${res.status}`);
+      if (!response.success) {
+        throw new Error(response.error || 'Failed to mark as delivered');
       }
 
-      setStatus(body.status ?? "DELIVERED");
-      setMessage("Marked as delivered. Buyer will be asked to confirm, or funds will auto-release later.");
+      setStatus(response.data?.status ?? "SHIPPED");
+      setMessage("Shipping info added. Order marked as shipped. Buyer will be notified.");
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : "Something went wrong";
       setError(errorMessage);

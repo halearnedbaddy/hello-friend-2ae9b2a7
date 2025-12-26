@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { authenticate } from '../middleware/auth';
 import { mpesaService } from '../services/mpesaService';
-import { smsService } from '../services/smsService';
+import { sendSMS } from '../services/smsService';
 import { prisma } from '../config/database';
 import { io } from '../index';
 
@@ -35,20 +35,26 @@ router.post('/initiate-stk', authenticate, async (req, res) => {
       });
     }
 
+    // Get user name
+    const user = await prisma.user.findUnique({
+      where: { id: req.user?.userId },
+      select: { name: true },
+    });
+
     // Initiate STK Push
     const stkResponse = await mpesaService.initiateSTKPush(
       phoneNumber,
       amount,
       transactionId,
-      req.user?.name || 'Buyer'
+      user?.name || 'Buyer'
     );
 
-    // Store checkout request ID
+    // Update transaction status to PROCESSING
     await prisma.transaction.update({
       where: { id: transactionId },
       data: {
-        checkoutRequestId: stkResponse.CheckoutRequestID,
-        status: 'PAYMENT_PENDING',
+        status: 'PROCESSING',
+        paymentReference: stkResponse.CheckoutRequestID,
       },
     });
 
@@ -84,9 +90,9 @@ router.post('/mpesa-callback', async (req, res) => {
 
     const { ResultCode, CheckoutRequestID, CallbackMetadata } = Body.stkCallback;
 
-    // Find transaction by checkout request ID
+    // Find transaction by payment reference (checkout request ID)
     const transaction = await prisma.transaction.findFirst({
-      where: { checkoutRequestId: CheckoutRequestID },
+      where: { paymentReference: CheckoutRequestID },
       include: { buyer: true, seller: true },
     });
 
@@ -104,19 +110,17 @@ router.post('/mpesa-callback', async (req, res) => {
       await prisma.transaction.update({
         where: { id: transaction.id },
         data: {
-          status: 'PAYMENT_CONFIRMED',
-          mpesaReceiptNumber: mpesaCode,
-          paidAmount: amount,
+          status: 'PAID',
+          paymentReference: mpesaCode,
           paidAt: new Date(),
         },
       });
 
       // Send SMS to seller - funds secured
       if (transaction.seller?.phone) {
-        await smsService.sendPaymentConfirmationSMS(
+        await sendSMS(
           transaction.seller.phone,
-          amount,
-          transaction.buyer?.name || 'Buyer'
+          `Payment of KES ${amount} received for order ${transaction.id}. Funds secured in escrow.`
         );
       }
 
@@ -131,10 +135,10 @@ router.post('/mpesa-callback', async (req, res) => {
 
       console.log('✅ Payment confirmed for transaction:', transaction.id);
     } else {
-      // Payment failed
+      // Payment failed - revert to PENDING
       await prisma.transaction.update({
         where: { id: transaction.id },
-        data: { status: 'PAYMENT_FAILED' },
+        data: { status: 'PENDING' },
       });
 
       console.log('❌ Payment failed for transaction:', transaction.id);
@@ -191,13 +195,16 @@ router.post('/confirm-delivery', authenticate, async (req, res) => {
       data: {
         status: 'COMPLETED',
         completedAt: new Date(),
-        b2cRequestId: b2cResponse.ConversationID,
+        paymentReference: b2cResponse.ConversationID,
       },
     });
 
     // Send SMS to seller - funds released
     if (transaction.seller?.phone) {
-      await smsService.sendPaymentReleasedSMS(transaction.seller.phone, transaction.amount);
+      await sendSMS(
+        transaction.seller.phone,
+        `KES ${transaction.amount} has been released to your account for transaction ${transactionId}.`
+      );
     }
 
     // Emit WebSocket notification

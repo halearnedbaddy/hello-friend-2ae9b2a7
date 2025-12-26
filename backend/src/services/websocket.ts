@@ -1,5 +1,6 @@
 import { WebSocket, WebSocketServer } from 'ws';
 import { Server } from 'http';
+import { IncomingMessage } from 'http';
 import jwt from 'jsonwebtoken';
 
 interface AuthenticatedSocket extends WebSocket {
@@ -23,7 +24,7 @@ class WebSocketManager {
   initialize(server: Server) {
     this.wss = new WebSocketServer({ server, path: '/ws' });
 
-    this.wss.on('connection', (ws: AuthenticatedSocket, req) => {
+    this.wss.on('connection', (ws: AuthenticatedSocket, req: IncomingMessage) => {
       console.log('🔌 New WebSocket connection attempt');
 
       // Extract token from query string
@@ -132,8 +133,8 @@ class WebSocketManager {
     }
 
     const payload = JSON.stringify({
-      type: 'notification',
       ...notification,
+      type: 'notification',
     });
 
     userClients.forEach((client) => {
@@ -151,8 +152,8 @@ class WebSocketManager {
    */
   broadcast(notification: NotificationPayload, excludeUserId?: string) {
     const payload = JSON.stringify({
-      type: 'notification',
       ...notification,
+      type: 'notification',
     });
 
     this.clients.forEach((clients, userId) => {

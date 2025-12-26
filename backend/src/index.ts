@@ -13,6 +13,7 @@ import buyerRoutes from './routes/buyerRoutes';
 import adminRoutes from './routes/adminRoutes';
 import notificationRoutes from './routes/notificationRoutes';
 import paymentRoutes from './routes/paymentRoutes';
+import storeRoutes from './routes/storeRoutes';
 import { globalRateLimiter, sanitizeInput, detectSuspiciousActivity } from './middleware/security';
 
 const app = express();
@@ -38,13 +39,41 @@ app.use(helmet({
   crossOriginEmbedderPolicy: false,
 }));
 
-// CORS configuration
-app.use(cors({
-  origin: process.env.CORS_ORIGIN?.split(',') || ['http://localhost:5173', 'http://localhost:3000'],
+// CORS configuration - Allow all origins in development, restrict in production
+const corsOrigins = process.env.CORS_ORIGIN?.split(',') || [
+  'http://localhost:5000',
+  'http://localhost:5173',
+  'http://localhost:3000',
+  'http://127.0.0.1:5000',
+  'http://127.0.0.1:5173',
+  'http://127.0.0.1:3000',
+];
+
+// Allow Replit dev domains
+const corsOptions = {
+  origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    // Check if origin is in the allowed list
+    if (corsOrigins.includes(origin)) {
+      callback(null, true);
+    } else if (origin?.includes('replit.dev') || origin?.includes('localhost') || origin?.includes('127.0.0.1')) {
+      // Allow Replit dev domains and localhost variants
+      callback(null, true);
+    } else if (process.env.NODE_ENV !== 'production') {
+      // Allow all in development
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-CSRF-Token'],
-}));
+};
+
+app.use(cors(corsOptions));
 
 // Body parsing
 app.use(express.json({ limit: '10mb' }));
@@ -74,6 +103,7 @@ app.use('/api/v1/buyer', buyerRoutes);
 app.use('/api/v1/admin', adminRoutes);
 app.use('/api/v1/notifications', notificationRoutes);
 app.use('/api/v1/payments', paymentRoutes);
+app.use('/api/v1/stores', storeRoutes);
 
 // 404 handler
 app.use((req, res) => {
@@ -129,8 +159,9 @@ async function startServer() {
     await prisma.$connect();
     console.log('✅ Database connected successfully');
 
-    httpServer.listen(PORT, '0.0.0.0', () => {
-      console.log(`🚀 Server running on http://0.0.0.0:${PORT}`);
+    const port = typeof PORT === 'string' ? parseInt(PORT, 10) : PORT;
+    httpServer.listen(port, '0.0.0.0', () => {
+      console.log(`🚀 Server running on http://0.0.0.0:${port}`);
       console.log(`📝 Environment: ${process.env.NODE_ENV || 'development'}`);
     });
   } catch (error) {

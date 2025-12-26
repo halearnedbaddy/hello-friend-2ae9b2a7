@@ -1,6 +1,5 @@
 import { useState } from "react";
-
-const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:4000";
+import { api } from "@/services/api";
 
 interface Props {
   transactionId: string;
@@ -33,17 +32,13 @@ export function BuyerConfirmActions({ transactionId, initialStatus }: Props) {
     }
 
     try {
-      const res = await fetch(`${API_BASE}/api/v1/payments/${transactionId}/confirm`, {
-        method: "POST",
-      });
+      const response = await api.confirmDelivery(transactionId);
 
-      const body = await res.json().catch(() => ({}));
-
-      if (!res.ok) {
-        throw new Error(body.error || `Request failed with ${res.status}`);
+      if (!response.success) {
+        throw new Error(response.error || 'Failed to confirm delivery');
       }
 
-      setStatus(body.status ?? "COMPLETED");
+      setStatus(response.data?.status ?? "COMPLETED");
       setMessage("Thanks! We've marked this as received and queued payout to the seller.");
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : "Something went wrong";

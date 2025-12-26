@@ -19,17 +19,17 @@ enum UserRole {
 }
 
 enum TransactionStatus {
-  PENDING      // Link created, waiting for buyer to pay
-  PROCESSING   // Payment is being processed
-  PAID         // Buyer has paid, funds in escrow
-  ACCEPTED     // Seller accepted the order
-  SHIPPED      // Seller has shipped the item
-  DELIVERED    // Item delivered, waiting for confirmation
-  COMPLETED    // Buyer confirmed, funds released to seller
-  DISPUTED     // Buyer opened a dispute
-  CANCELLED    // Transaction cancelled
-  REFUNDED     // Funds refunded to buyer
-  EXPIRED      // Payment link expired
+  PENDING // Link created, waiting for buyer to pay
+  PROCESSING // Payment is being processed
+  PAID // Buyer has paid, funds in escrow
+  ACCEPTED // Seller accepted the order
+  SHIPPED // Seller has shipped the item
+  DELIVERED // Item delivered, waiting for confirmation
+  COMPLETED // Buyer confirmed, funds released to seller
+  DISPUTED // Buyer opened a dispute
+  CANCELLED // Transaction cancelled
+  REFUNDED // Funds refunded to buyer
+  EXPIRED // Payment link expired
 }
 
 enum DisputeStatus {
@@ -37,7 +37,7 @@ enum DisputeStatus {
   UNDER_REVIEW
   AWAITING_SELLER
   AWAITING_BUYER
-  RESOLVED_BUYER  // Resolved in buyer's favor
+  RESOLVED_BUYER // Resolved in buyer's favor
   RESOLVED_SELLER // Resolved in seller's favor
   CLOSED
 }
@@ -56,44 +56,89 @@ enum PaymentMethodType {
 }
 
 enum NotificationType {
-  PAYMENT_RECEIVED     // Seller: funds secured in escrow
-  ORDER_ACCEPTED       // Buyer: seller accepted order
-  ITEM_SHIPPED         // Buyer: item shipped
-  DELIVERY_CONFIRMED   // Seller: funds released
-  DISPUTE_OPENED       // Both: dispute opened
-  DISPUTE_UPDATE       // Both: dispute status changed
-  DISPUTE_RESOLVED     // Both: dispute resolved
+  PAYMENT_RECEIVED // Seller: funds secured in escrow
+  ORDER_ACCEPTED // Buyer: seller accepted order
+  ITEM_SHIPPED // Buyer: item shipped
+  DELIVERY_CONFIRMED // Seller: funds released
+  DISPUTE_OPENED // Both: dispute opened
+  DISPUTE_UPDATE // Both: dispute status changed
+  DISPUTE_RESOLVED // Both: dispute resolved
   WITHDRAWAL_PROCESSED // Seller: withdrawal completed
-  LINK_EXPIRED         // Seller: payment link expired
-  REMINDER             // Both: action reminder
+  LINK_EXPIRED // Seller: payment link expired
+  REMINDER // Both: action reminder
+}
+
+// ================== NEW ENUMS FOR COMMERCE LAYER ==================
+
+enum StoreStatus {
+  INACTIVE
+  LIVE
+  SUSPENDED
+}
+
+enum StoreVisibility {
+  PRIVATE // Only accessible via direct link
+  PUBLIC // Eligible for discovery (future feature)
+}
+
+enum SyncStatus {
+  IDLE
+  RUNNING
+  SUCCESS
+  FAILED
+}
+
+enum ProductStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum ProductSource {
+  MANUAL
+  INSTAGRAM
+  FACEBOOK
+}
+
+enum PromotionType {
+  STORE_WIDE // Applies to all products in store
+  PRODUCT // Applies to specific product
+  LINK_BASED // Code-based promo
+  FEE_DISCOUNT // Platform fee discount (admin only)
+}
+
+enum DiscountType {
+  PERCENTAGE
+  FIXED_AMOUNT
 }
 
 // ================== MODELS ==================
 
 model User {
-  id                   String    @id @default(uuid())
-  phone                String    @unique
-  email                String?   @unique
-  name                 String
-  profilePicture       String?
-  role                 UserRole  @default(BUYER)
-  isVerified           Boolean   @default(false)
-  isActive             Boolean   @default(true)
-  failedLoginAttempts  Int       @default(0)
-  lockedUntil          DateTime?
-  lastLogin            DateTime?
-  memberSince          DateTime  @default(now())
-  createdAt            DateTime  @default(now())
-  updatedAt            DateTime  @updatedAt
+  id                  String    @id @default(uuid())
+  phone               String    @unique
+  email               String?   @unique
+  name                String
+  profilePicture      String?
+  role                UserRole  @default(BUYER)
+  isVerified          Boolean   @default(false)
+  isActive            Boolean   @default(true)
+  failedLoginAttempts Int       @default(0)
+  lockedUntil         DateTime?
+  lastLogin           DateTime?
+  memberSince         DateTime  @default(now())
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 
   // Relations
   wallet               Wallet?
   sellerProfile        SellerProfile?
+  store                Store?
   paymentMethods       PaymentMethod[]
   withdrawals          Withdrawal[]
-  transactionsAsSeller Transaction[]    @relation("SellerTransactions")
-  transactionsAsBuyer  Transaction[]    @relation("BuyerTransactions")
-  disputesOpened       Dispute[]        @relation("DisputeOpener")
+  transactionsAsSeller Transaction[]   @relation("SellerTransactions")
+  transactionsAsBuyer  Transaction[]   @relation("BuyerTransactions")
+  disputesOpened       Dispute[]       @relation("DisputeOpener")
   notifications        Notification[]
   refreshTokens        RefreshToken[]
   auditLogs            AuditLog[]
@@ -104,51 +149,51 @@ model User {
 }
 
 model SellerProfile {
-  id                String   @id @default(uuid())
-  userId            String   @unique
-  businessName      String?
-  businessAddress   String?
-  isVerified        Boolean  @default(false)
-  verificationDate  DateTime?
-  rating            Float    @default(0)
-  totalReviews      Int      @default(0)
-  totalSales        Int      @default(0)
-  successRate       Float    @default(100)
-  responseTime      Int?     // Average response time in hours
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  id               String    @id @default(uuid())
+  userId           String    @unique
+  businessName     String?
+  businessAddress  String?
+  isVerified       Boolean   @default(false)
+  verificationDate DateTime?
+  rating           Float     @default(0)
+  totalReviews     Int       @default(0)
+  totalSales       Int       @default(0)
+  successRate      Float     @default(100)
+  responseTime     Int? // Average response time in hours
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 
-  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Wallet {
   id               String   @id @default(uuid())
   userId           String   @unique
   availableBalance Float    @default(0)
-  pendingBalance   Float    @default(0)  // Funds in escrow
+  pendingBalance   Float    @default(0) // Funds in escrow
   totalEarned      Float    @default(0)
   totalSpent       Float    @default(0)
   currency         String   @default("KES")
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
-  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model PaymentMethod {
   id            String            @id @default(uuid())
   userId        String
   type          PaymentMethodType
-  provider      String            // e.g., "M-PESA", "EQUITY", "KCB"
-  accountNumber String            // Phone number or bank account
+  provider      String // e.g., "M-PESA", "EQUITY", "KCB"
+  accountNumber String // Phone number or bank account
   accountName   String
   isDefault     Boolean           @default(false)
   isActive      Boolean           @default(true)
   createdAt     DateTime          @default(now())
   updatedAt     DateTime          @updatedAt
 
-  user          User              @relation(fields: [userId], references: [id], onDelete: Cascade)
-  withdrawals   Withdrawal[]
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  withdrawals Withdrawal[]
 
   @@index([userId])
 }
@@ -159,121 +204,127 @@ model Withdrawal {
   paymentMethodId String
   amount          Float
   fee             Float            @default(0)
-  netAmount       Float?           // amount - fee
+  netAmount       Float? // amount - fee
   status          WithdrawalStatus @default(PENDING)
-  reference       String?          // External payment reference
+  reference       String? // External payment reference
   failureReason   String?
   processedAt     DateTime?
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
 
-  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  paymentMethod   PaymentMethod    @relation(fields: [paymentMethodId], references: [id])
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  paymentMethod PaymentMethod @relation(fields: [paymentMethodId], references: [id])
 
   @@index([userId])
   @@index([status])
 }
 
 model Transaction {
-  id                    String            @id
-  sellerId              String
-  buyerId               String?           // null until buyer pays
-  
+  id       String  @id
+  sellerId String
+  buyerId  String? // null until buyer pays
+
   // Product Details
-  itemName              String
-  itemDescription       String?
-  itemImages            String[]          @default([])
-  amount                Float
-  quantity              Int               @default(1)
-  currency              String            @default("KES")
-  
+  itemName        String
+  itemDescription String?
+  itemImages      String[] @default([])
+  amount          Float
+  quantity        Int      @default(1)
+  currency        String   @default("KES")
+
   // Buyer Details (for guest checkout)
-  buyerPhone            String?
-  buyerName             String?
-  buyerEmail            String?
-  buyerAddress          String?
-  
+  buyerPhone   String?
+  buyerName    String?
+  buyerEmail   String?
+  buyerAddress String?
+
   // Payment Details
-  paymentMethod         String?
-  paymentReference      String?           // M-Pesa confirmation code etc.
-  platformFee           Float?
-  sellerPayout          Float?
-  
+  paymentMethod    String?
+  paymentReference String? // M-Pesa confirmation code etc.
+  platformFee      Float?
+  sellerPayout     Float?
+
   // Status & Dates
-  status                TransactionStatus @default(PENDING)
-  expiresAt             DateTime?
-  paidAt                DateTime?
-  acceptedAt            DateTime?
-  shippedAt             DateTime?
-  deliveredAt           DateTime?
-  completedAt           DateTime?
-  cancelledAt           DateTime?
-  refundedAt            DateTime?
-  
+  status      TransactionStatus @default(PENDING)
+  expiresAt   DateTime?
+  paidAt      DateTime?
+  acceptedAt  DateTime?
+  shippedAt   DateTime?
+  deliveredAt DateTime?
+  completedAt DateTime?
+  cancelledAt DateTime?
+  refundedAt  DateTime?
+
   // Shipping Details
   courierName           String?
   trackingNumber        String?
   estimatedDeliveryDate DateTime?
   shippingNotes         String?
-  deliveryProofUrls     String[]          @default([])
-  
+  deliveryProofUrls     String[]  @default([])
+
   // Rejection/Cancellation
-  rejectedAt            DateTime?
-  rejectionReason       String?
-  cancellationReason    String?
-  
-  createdAt             DateTime          @default(now())
-  updatedAt             DateTime          @updatedAt
+  rejectedAt         DateTime?
+  rejectionReason    String?
+  cancellationReason String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   // Relations
-  seller                User              @relation("SellerTransactions", fields: [sellerId], references: [id])
-  buyer                 User?             @relation("BuyerTransactions", fields: [buyerId], references: [id])
-  dispute               Dispute?
-  payout                Payout?
+  seller       User          @relation("SellerTransactions", fields: [sellerId], references: [id])
+  buyer        User?         @relation("BuyerTransactions", fields: [buyerId], references: [id])
+  productId    String? // Optional: link to product (backward compatible)
+  product      Product?      @relation(fields: [productId], references: [id])
+  promotionId  String? // Optional: applied promotion
+  promotion    Promotion?    @relation(fields: [promotionId], references: [id])
+  dispute      Dispute?
+  payout       Payout?
+  fraudSignals FraudSignal[]
 
   @@index([sellerId])
   @@index([buyerId])
   @@index([status])
   @@index([createdAt])
+  @@index([productId])
 }
 
 model Dispute {
-  id            String        @id @default(uuid())
-  transactionId String        @unique
+  id            String @id @default(uuid())
+  transactionId String @unique
   openedById    String
-  
-  reason        String
-  description   String?
-  evidence      String[]      @default([])
-  
-  status        DisputeStatus @default(OPEN)
-  resolution    String?
-  resolvedById  String?
-  resolvedAt    DateTime?
-  deadline      DateTime?
-  
-  // Communication
-  messages      DisputeMessage[]
-  
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
 
-  transaction   Transaction   @relation(fields: [transactionId], references: [id])
-  openedBy      User          @relation("DisputeOpener", fields: [openedById], references: [id])
+  reason      String
+  description String?
+  evidence    String[] @default([])
+
+  status       DisputeStatus @default(OPEN)
+  resolution   String?
+  resolvedById String?
+  resolvedAt   DateTime?
+  deadline     DateTime?
+
+  // Communication
+  messages DisputeMessage[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  transaction Transaction @relation(fields: [transactionId], references: [id])
+  openedBy    User        @relation("DisputeOpener", fields: [openedById], references: [id])
 
   @@index([status])
 }
 
 model DisputeMessage {
-  id        String   @id @default(uuid())
-  disputeId String
-  senderId  String
-  message   String
+  id          String   @id @default(uuid())
+  disputeId   String
+  senderId    String
+  message     String
   attachments String[] @default([])
-  isAdmin   Boolean  @default(false)
-  createdAt DateTime @default(now())
+  isAdmin     Boolean  @default(false)
+  createdAt   DateTime @default(now())
 
-  dispute   Dispute  @relation(fields: [disputeId], references: [id], onDelete: Cascade)
+  dispute Dispute @relation(fields: [disputeId], references: [id], onDelete: Cascade)
 
   @@index([disputeId])
 }
@@ -287,7 +338,7 @@ model Payout {
   status        String   @default("COMPLETED")
   createdAt     DateTime @default(now())
 
-  transaction   Transaction @relation(fields: [transactionId], references: [id])
+  transaction Transaction @relation(fields: [transactionId], references: [id])
 }
 
 model Notification {
@@ -296,12 +347,12 @@ model Notification {
   type      NotificationType
   title     String
   message   String
-  data      Json?            // Additional data (transactionId, etc.)
+  data      Json? // Additional data (transactionId, etc.)
   isRead    Boolean          @default(false)
   readAt    DateTime?
   createdAt DateTime         @default(now())
 
-  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([isRead])
@@ -319,7 +370,7 @@ model RefreshToken {
   isRevoked Boolean  @default(false)
   createdAt DateTime @default(now())
 
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([token])
@@ -329,7 +380,7 @@ model OTP {
   id        String   @id @default(uuid())
   phone     String
   code      String
-  purpose   String   // LOGIN, REGISTRATION, PASSWORD_RESET, VERIFICATION
+  purpose   String // LOGIN, REGISTRATION, PASSWORD_RESET, VERIFICATION
   attempts  Int      @default(0)
   verified  Boolean  @default(false)
   expiresAt DateTime
@@ -351,9 +402,170 @@ model AuditLog {
   success   Boolean  @default(true)
   createdAt DateTime @default(now())
 
-  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([userId])
   @@index([action])
   @@index([createdAt])
+}
+
+// ================== NEW MODELS FOR COMMERCE LAYER ==================
+
+model Store {
+  id               String          @id @default(uuid())
+  sellerId         String          @unique
+  name             String
+  slug             String          @unique
+  logo             String?
+  bio              String?
+  status           StoreStatus     @default(INACTIVE)
+  visibility       StoreVisibility @default(PRIVATE)
+  optInToDiscovery Boolean         @default(false)
+  payoutMethodId   String? // Must be set for store to go live
+
+  // Social Page Connection
+  connectedInstagramPage String?
+  connectedFacebookPage  String?
+  lastSyncAt             DateTime?
+  syncStatus             SyncStatus @default(IDLE)
+
+  // Sync Failure Tracking
+  syncFailureCount  Int       @default(0)
+  syncDisabledUntil DateTime?
+  lastSyncError     String?
+  maxSyncFailures   Int       @default(5)
+
+  // Risk & Fraud
+  riskScore     Float     @default(0)
+  lastRiskCheck DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  seller       User           @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  products     Product[]
+  promotions   Promotion[]
+  syncLogs     StoreSyncLog[]
+  fraudSignals FraudSignal[]
+
+  @@index([slug])
+  @@index([status])
+  @@index([visibility])
+  @@index([sellerId])
+}
+
+model Product {
+  id          String        @id @default(uuid())
+  storeId     String
+  name        String
+  price       Float
+  description String?
+  images      String[]      @default([])
+  status      ProductStatus @default(DRAFT)
+  source      ProductSource @default(MANUAL)
+
+  // Availability
+  isAvailable      Boolean @default(true)
+  availabilityNote String? // e.g., "DM before order", "Limited stock"
+
+  // Social Post Reference (if AI-created)
+  socialPostId   String?
+  socialPostUrl  String?
+  socialPlatform String? // 'instagram' | 'facebook'
+
+  // AI Metadata
+  aiCreatedAt        DateTime?
+  aiLastUpdatedAt    DateTime?
+  aiConfidenceScore  Float? // 0.0 to 1.0
+  extractionWarnings String[]  @default([]) // e.g., ["Price unclear", "No images found"]
+  missingFields      String[]  @default([]) // e.g., ["description", "price"]
+  needsReview        Boolean   @default(false)
+
+  // Source of Truth
+  manuallyEditedFields String[]  @default([]) // e.g., ["name", "price", "description"]
+  aiSuggestions        Json? // Store AI suggestions for review
+  lastAiSuggestionAt   DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  store        Store         @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  transactions Transaction[]
+  promotions   Promotion[]
+
+  @@index([storeId])
+  @@index([status])
+  @@index([isAvailable])
+  @@index([needsReview])
+}
+
+model StoreSyncLog {
+  id               String    @id @default(uuid())
+  storeId          String
+  syncType         String // 'initial' | 'incremental'
+  status           String // 'success' | 'failed'
+  productsFound    Int       @default(0)
+  productsCreated  Int       @default(0)
+  productsUpdated  Int       @default(0)
+  productsArchived Int       @default(0)
+  error            String?
+  startedAt        DateTime
+  completedAt      DateTime?
+
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@index([storeId])
+  @@index([status])
+  @@index([startedAt])
+}
+
+model FraudSignal {
+  id                String   @id @default(uuid())
+  transactionId     String?
+  storeId           String?
+  deviceFingerprint String?
+  ipAddress         String?
+  ipReputationScore Float? // 0.0 to 1.0 (1.0 = clean)
+  paymentVelocity   Int      @default(0) // Payments in last 24h
+  riskScore         Float    @default(0) // 0.0 to 1.0 (1.0 = high risk)
+  flags             String[] @default([]) // e.g., ["high_velocity", "suspicious_ip"]
+  createdAt         DateTime @default(now())
+
+  transaction Transaction? @relation(fields: [transactionId], references: [id], onDelete: SetNull)
+  store       Store?       @relation(fields: [storeId], references: [id], onDelete: SetNull)
+
+  @@index([transactionId])
+  @@index([storeId])
+  @@index([riskScore])
+  @@index([createdAt])
+}
+
+model Promotion {
+  id            String        @id @default(uuid())
+  storeId       String?
+  productId     String?
+  code          String?       @unique // For link-based promos
+  type          PromotionType
+  discountType  DiscountType
+  discountValue Float // Percentage or fixed amount
+  minPurchase   Float? // Minimum purchase amount
+  maxDiscount   Float? // Maximum discount cap
+  startDate     DateTime
+  endDate       DateTime?
+  isActive      Boolean       @default(true)
+  usageLimit    Int? // Total usage limit
+  usageCount    Int           @default(0)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  store        Store?        @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  product      Product?      @relation(fields: [productId], references: [id], onDelete: SetNull)
+  transactions Transaction[]
+
+  @@index([code])
+  @@index([storeId])
+  @@index([productId])
+  @@index([isActive])
+  @@index([startDate])
+  @@index([endDate])
 }
