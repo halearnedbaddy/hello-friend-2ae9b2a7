@@ -1,4 +1,4 @@
-import { Search, MoreVertical, BadgeCheck, ShieldAlert, Loader } from 'lucide-react';
+import { Search, MoreVertical, BadgeCheck, Loader } from 'lucide-react';
 import { useState } from 'react';
 import { useAdminData } from '@/hooks/useAdminData';
 
@@ -13,16 +13,6 @@ export function AdminUsers() {
             u.phone.includes(searchTerm) ||
             u.id.includes(searchTerm))
     );
-
-    const getRiskScore = (user: any) => {
-        if (!user.isActive) return 'Critical';
-        if (!user.isVerified) return 'Medium';
-        return 'Low';
-    };
-
-    const getStatusColor = (isActive: boolean) => {
-        return isActive ? 'active' : 'inactive';
-    };
 
     if (loading) {
         return (

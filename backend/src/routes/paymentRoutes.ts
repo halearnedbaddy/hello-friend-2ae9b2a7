@@ -1,7 +1,7 @@
 import { Router } from 'express';
-import { authenticate } from '../middleware/auth';
+import { authenticate, optionalAuth } from '../middleware/auth';
 import { mpesaService } from '../services/mpesaService';
-import { smsService } from '../services/smsService';
+import { sendSMS } from '../services/smsService';
 import { prisma } from '../config/database';
 import { io } from '../index';
 
@@ -11,9 +11,9 @@ const router = Router();
  * POST /api/v1/payments/initiate-stk
  * Initiate STK Push for buyer payment
  */
-router.post('/initiate-stk', authenticate, async (req, res) => {
+router.post('/initiate-stk', optionalAuth, async (req, res) => {
   try {
-    const { transactionId, phoneNumber, amount } = req.body;
+    const { transactionId, phoneNumber, amount, buyerName } = req.body;
 
     if (!transactionId || !phoneNumber || !amount) {
       return res.status(400).json({
@@ -35,20 +35,28 @@ router.post('/initiate-stk', authenticate, async (req, res) => {
       });
     }
 
+    if (transaction.status !== 'PENDING') {
+      return res.status(400).json({
+        success: false,
+        error: 'Transaction is not available for payment',
+      });
+    }
+
     // Initiate STK Push
     const stkResponse = await mpesaService.initiateSTKPush(
       phoneNumber,
       amount,
       transactionId,
-      req.user?.name || 'Buyer'
+      buyerName || req.user?.phone || 'Customer'
     );
 
-    // Store checkout request ID
+    // Store checkout request ID and update status
     await prisma.transaction.update({
       where: { id: transactionId },
       data: {
-        checkoutRequestId: stkResponse.CheckoutRequestID,
-        status: 'PAYMENT_PENDING',
+        paymentReference: stkResponse.CheckoutRequestID,
+        status: 'PROCESSING',
+        buyerPhone: phoneNumber,
       },
     });
 
@@ -84,9 +92,9 @@ router.post('/mpesa-callback', async (req, res) => {
 
     const { ResultCode, CheckoutRequestID, CallbackMetadata } = Body.stkCallback;
 
-    // Find transaction by checkout request ID
+    // Find transaction by checkout request ID (stored in paymentReference)
     const transaction = await prisma.transaction.findFirst({
-      where: { checkoutRequestId: CheckoutRequestID },
+      where: { paymentReference: CheckoutRequestID },
       include: { buyer: true, seller: true },
     });
 
@@ -97,35 +105,50 @@ router.post('/mpesa-callback', async (req, res) => {
 
     if (ResultCode === 0) {
       // Payment successful
-      const mpesaCode = CallbackMetadata.Item.find((item: { Name: string }) => item.Name === 'MpesaReceiptNumber')?.Value;
-      const amount = CallbackMetadata.Item.find((item: { Name: string }) => item.Name === 'Amount')?.Value;
+      const mpesaCode = CallbackMetadata?.Item?.find((item: { Name: string }) => item.Name === 'MpesaReceiptNumber')?.Value;
+      const paidAmount = CallbackMetadata?.Item?.find((item: { Name: string }) => item.Name === 'Amount')?.Value;
+
+      // Calculate fees
+      const platformFeePercent = parseFloat(process.env.PLATFORM_FEE_PERCENT || '5');
+      const platformFee = (transaction.amount * platformFeePercent) / 100;
+      const sellerPayout = transaction.amount - platformFee;
 
       // Update transaction status
-      await prisma.transaction.update({
-        where: { id: transaction.id },
-        data: {
-          status: 'PAYMENT_CONFIRMED',
-          mpesaReceiptNumber: mpesaCode,
-          paidAmount: amount,
-          paidAt: new Date(),
-        },
+      await prisma.$transaction(async (tx) => {
+        await tx.transaction.update({
+          where: { id: transaction.id },
+          data: {
+            status: 'PAID',
+            paymentReference: mpesaCode || CheckoutRequestID,
+            paidAt: new Date(),
+            platformFee,
+            sellerPayout,
+          },
+        });
+
+        // Add to seller's pending balance (escrow)
+        await tx.wallet.update({
+          where: { userId: transaction.sellerId },
+          data: {
+            pendingBalance: { increment: transaction.amount },
+          },
+        });
       });
 
       // Send SMS to seller - funds secured
       if (transaction.seller?.phone) {
-        await smsService.sendPaymentConfirmationSMS(
+        await sendSMS(
           transaction.seller.phone,
-          amount,
-          transaction.buyer?.name || 'Buyer'
+          `SWIFTLINE: KES ${paidAmount || transaction.amount} payment secured for "${transaction.itemName}". Ship the item now!`
         );
       }
 
       // Emit WebSocket notification
       io.to(`user:${transaction.sellerId}`).emit('notification:new', {
         id: `payment-${transaction.id}`,
-        type: 'PAYMENT',
-        title: 'Payment Received',
-        message: `KES ${amount} payment secured for order. Ready to ship!`,
+        type: 'PAYMENT_RECEIVED',
+        title: 'Payment Received! 🎉',
+        message: `KES ${paidAmount || transaction.amount} payment secured for order. Ready to ship!`,
         timestamp: new Date().toISOString(),
       });
 
@@ -134,7 +157,7 @@ router.post('/mpesa-callback', async (req, res) => {
       // Payment failed
       await prisma.transaction.update({
         where: { id: transaction.id },
-        data: { status: 'PAYMENT_FAILED' },
+        data: { status: 'CANCELLED' },
       });
 
       console.log('❌ Payment failed for transaction:', transaction.id);
@@ -174,44 +197,74 @@ router.post('/confirm-delivery', authenticate, async (req, res) => {
 
     // Verify OTP (in production, verify against stored OTP)
     if (deliveryOTP !== '1234') {
-      // Demo: hardcoded OTP
       return res.status(401).json({ success: false, error: 'Invalid OTP' });
     }
 
-    // Release funds via B2C
-    const b2cResponse = await mpesaService.releaseSellerFunds(
-      transaction.seller!.phone,
-      transaction.amount,
-      transactionId
-    );
+    // Calculate fees
+    const platformFeePercent = parseFloat(process.env.PLATFORM_FEE_PERCENT || '5');
+    const platformFee = (transaction.amount * platformFeePercent) / 100;
+    const sellerPayout = transaction.amount - platformFee;
 
-    // Update transaction
-    await prisma.transaction.update({
-      where: { id: transactionId },
-      data: {
-        status: 'COMPLETED',
-        completedAt: new Date(),
-        b2cRequestId: b2cResponse.ConversationID,
-      },
+    // Complete transaction and release funds
+    await prisma.$transaction(async (tx) => {
+      // Update transaction
+      await tx.transaction.update({
+        where: { id: transactionId },
+        data: {
+          status: 'COMPLETED',
+          completedAt: new Date(),
+          platformFee,
+          sellerPayout,
+        },
+      });
+
+      // Credit seller's wallet
+      await tx.wallet.update({
+        where: { userId: transaction.sellerId },
+        data: {
+          availableBalance: { increment: sellerPayout },
+          pendingBalance: { decrement: transaction.amount },
+          totalEarned: { increment: sellerPayout },
+        },
+      });
+
+      // Create payout record
+      await tx.payout.create({
+        data: {
+          transactionId,
+          sellerId: transaction.sellerId,
+          amount: sellerPayout,
+          platformFee,
+          status: 'COMPLETED',
+        },
+      });
     });
 
     // Send SMS to seller - funds released
     if (transaction.seller?.phone) {
-      await smsService.sendPaymentReleasedSMS(transaction.seller.phone, transaction.amount);
+      await sendSMS(
+        transaction.seller.phone,
+        `SWIFTLINE: KES ${sellerPayout.toLocaleString()} has been released to your wallet for "${transaction.itemName}". Withdraw anytime!`
+      );
     }
 
     // Emit WebSocket notification
     io.to(`user:${transaction.sellerId}`).emit('notification:new', {
       id: `completed-${transaction.id}`,
-      type: 'ORDER_STATUS',
-      title: 'Payment Released',
-      message: `KES ${transaction.amount} has been released to your M-Pesa account`,
+      type: 'DELIVERY_CONFIRMED',
+      title: 'Payment Released! 💰',
+      message: `KES ${sellerPayout.toLocaleString()} has been added to your wallet`,
       timestamp: new Date().toISOString(),
     });
 
     res.json({
       success: true,
-      data: { conversationID: b2cResponse.ConversationID },
+      message: 'Delivery confirmed. Funds released to seller.',
+      data: { 
+        status: 'COMPLETED',
+        sellerPayout,
+        platformFee,
+      },
     });
   } catch (error) {
     console.error('❌ Delivery confirmation error:', error);
@@ -226,7 +279,7 @@ router.post('/confirm-delivery', authenticate, async (req, res) => {
  * POST /api/v1/payments/check-status
  * Check payment status
  */
-router.post('/check-status', authenticate, async (req, res) => {
+router.post('/check-status', optionalAuth, async (req, res) => {
   try {
     const { transactionId } = req.body;
 
@@ -243,11 +296,90 @@ router.post('/check-status', authenticate, async (req, res) => {
       data: {
         status: transaction.status,
         amount: transaction.amount,
+        paidAt: transaction.paidAt,
         createdAt: transaction.createdAt,
       },
     });
   } catch (error) {
     res.status(500).json({ success: false, error: 'Failed to check payment status' });
+  }
+});
+
+/**
+ * POST /api/v1/payments/simulate-payment
+ * Simulate payment confirmation (for demo/testing)
+ */
+router.post('/simulate-payment', async (req, res) => {
+  try {
+    const { transactionId } = req.body;
+
+    if (!transactionId) {
+      return res.status(400).json({ success: false, error: 'Missing transactionId' });
+    }
+
+    const transaction = await prisma.transaction.findUnique({
+      where: { id: transactionId },
+      include: { seller: true },
+    });
+
+    if (!transaction) {
+      return res.status(404).json({ success: false, error: 'Transaction not found' });
+    }
+
+    if (!['PENDING', 'PROCESSING'].includes(transaction.status)) {
+      return res.status(400).json({ success: false, error: 'Transaction cannot be confirmed' });
+    }
+
+    // Calculate fees
+    const platformFeePercent = parseFloat(process.env.PLATFORM_FEE_PERCENT || '5');
+    const platformFee = (transaction.amount * platformFeePercent) / 100;
+    const sellerPayout = transaction.amount - platformFee;
+
+    // Update transaction to PAID (funds now in escrow)
+    await prisma.$transaction(async (tx) => {
+      await tx.transaction.update({
+        where: { id: transactionId },
+        data: {
+          status: 'PAID',
+          paidAt: new Date(),
+          paymentReference: `SIM-${Date.now()}`,
+          platformFee,
+          sellerPayout,
+        },
+      });
+
+      // Add to seller's pending balance (escrow)
+      await tx.wallet.update({
+        where: { userId: transaction.sellerId },
+        data: {
+          pendingBalance: { increment: transaction.amount },
+        },
+      });
+    });
+
+    // Notify seller
+    io.to(`user:${transaction.sellerId}`).emit('notification:new', {
+      id: `payment-${transaction.id}`,
+      type: 'PAYMENT_RECEIVED',
+      title: 'Payment Received! 🎉',
+      message: `KES ${transaction.amount.toLocaleString()} payment secured for "${transaction.itemName}". Ship the item now!`,
+      timestamp: new Date().toISOString(),
+    });
+
+    res.json({
+      success: true,
+      message: 'Payment simulated. Funds are now in escrow.',
+      data: {
+        transactionId,
+        status: 'PAID',
+        escrowedAmount: transaction.amount,
+        sellerPayout,
+        platformFee,
+      },
+    });
+  } catch (error) {
+    console.error('Simulate payment error:', error);
+    res.status(500).json({ success: false, error: 'Failed to simulate payment' });
   }
 });
 

@@ -575,7 +575,6 @@ export const getProfile = async (req: Request, res: Response) => {
         isActive: true,
         memberSince: true,
         lastLogin: true,
-        notificationPreferences: true,
         wallet: {
           select: {
             availableBalance: true,

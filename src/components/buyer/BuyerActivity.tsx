@@ -1,4 +1,4 @@
-import { Activity, CheckCircle, AlertTriangle, DollarSign, ShoppingCart, Clock } from 'lucide-react';
+import { CheckCircle, DollarSign, ShoppingCart, Clock } from 'lucide-react';
 
 export function BuyerActivity() {
   const activities = [
