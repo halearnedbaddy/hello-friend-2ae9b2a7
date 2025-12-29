@@ -1,0 +1,242 @@
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { LayoutDashboard, Users, AlertTriangle, Activity, Settings, Menu, X, Bell, LogOut, Shield, Lock, Database, Key, Store, Share2 } from 'lucide-react';
+import { AdminOverview } from '@/components/admin/AdminOverview';
+import { AdminTransactions } from '@/components/admin/AdminTransactions';
+import { AdminDisputes } from '@/components/admin/AdminDisputes';
+import { AdminUsers } from '@/components/admin/AdminUsers';
+import { useAuth } from '@/contexts/AuthContext';
+
+export function AdminDashboard() {
+    const navigate = useNavigate();
+    const { user, logout } = useAuth();
+    const [activeTab, setActiveTab] = useState<'overview' | 'transactions' | 'disputes' | 'users' | 'settings' | 'stores' | 'social'>('overview');
+    const [sidebarOpen, setSidebarOpen] = useState(true);
+
+    const handleLogout = async () => {
+        await logout();
+        navigate('/');
+    };
+
+    const navItems = [
+        { id: 'overview', label: 'Overview', icon: LayoutDashboard },
+        { id: 'transactions', label: 'Transactions', icon: Activity },
+        { id: 'disputes', label: 'Disputes', icon: AlertTriangle },
+        { id: 'users', label: 'User Management', icon: Users },
+        { id: 'stores', label: 'Stores', icon: Store },
+        { id: 'social', label: 'Social Pages', icon: Share2 },
+        { id: 'settings', label: 'Settings', icon: Settings },
+    ];
+
+    return (
+        <div className="min-h-screen bg-gray-50 flex font-sans text-gray-900">
+            {/* Sidebar */}
+            <div className={`fixed inset-y-0 left-0 bg-gray-900 text-white w-64 transform ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} md:relative md:translate-x-0 transition duration-200 ease-in-out z-30 flex flex-col`}>
+                <div className="p-6 border-b border-gray-800 flex justify-between items-center">
+                    <div className="flex items-center gap-2 font-black text-xl tracking-tight">
+                        <Shield className="text-green-500" />
+                        SWIFTLINE
+                        <span className="text-xs bg-gray-800 text-gray-400 px-2 py-0.5 rounded ml-1 font-normal">ADMIN</span>
+                    </div>
+                    <button onClick={() => setSidebarOpen(false)} className="md:hidden text-gray-400 hover:text-white">
+                        <X size={24} />
+                    </button>
+                </div>
+
+                <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
+                    {navItems.map((item) => {
+                        const Icon = item.icon;
+                        return (
+                            <button
+                                key={item.id}
+                                onClick={() => {
+                                    setActiveTab(item.id as any);
+                                    if (window.innerWidth < 768) setSidebarOpen(false);
+                                }}
+                                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition duration-200 ${activeTab === item.id
+                                    ? 'bg-green-600 text-white shadow-lg shadow-green-900/20'
+                                    : 'text-gray-400 hover:bg-gray-800 hover:text-white'
+                                    }`}
+                            >
+                                <Icon size={20} />
+                                {item.label}
+                            </button>
+                        );
+                    })}
+                </nav>
+
+                <div className="p-4 border-t border-gray-800">
+                    <button
+                        onClick={handleLogout}
+                        className="w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium text-red-400 hover:bg-red-500/10 hover:text-red-300 transition">
+                        <LogOut size={20} />
+                        Logout
+                    </button>
+                    <div className="mt-4 flex items-center gap-3 px-2">
+                        <div className="w-8 h-8 bg-gray-700 rounded-full flex items-center justify-center font-bold text-xs">
+                            {user?.name.charAt(0).toUpperCase()}
+                        </div>
+                        <div>
+                            <p className="text-sm font-bold">{user?.name}</p>
+                            <p className="text-xs text-gray-500">Administrator</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Main Content */}
+            <div className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
+                {/* Header */}
+                <header className="bg-white border-b border-gray-200 h-16 flex items-center justify-between px-6 shrink-0">
+                    <div className="flex items-center gap-4">
+                        <button onClick={() => setSidebarOpen(true)} className="md:hidden text-gray-500 hover:text-gray-900">
+                            <Menu size={24} />
+                        </button>
+                        <h1 className="text-xl font-bold capitalize hidden md:block">{activeTab}</h1>
+                    </div>
+                    <div className="flex items-center gap-4">
+                        <button className="relative p-2 text-gray-500 hover:bg-gray-100 rounded-full transition">
+                            <Bell size={20} />
+                            <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full border border-white"></span>
+                        </button>
+                    </div>
+                </header>
+
+                {/* Content Area */}
+                <main className="flex-1 overflow-y-auto p-6 md:p-8">
+                    <div className="max-w-7xl mx-auto">
+                        {activeTab === 'overview' && <AdminOverview />}
+                        {activeTab === 'transactions' && <AdminTransactions />}
+                        {activeTab === 'disputes' && <AdminDisputes />}
+                        {activeTab === 'users' && <AdminUsers />}
+                        {activeTab === 'stores' && (
+                            <div className="space-y-6">
+                                <h2 className="text-2xl font-bold text-gray-800">Stores</h2>
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                    {[1,2,3].map((i) => (
+                                        <div key={i} className="bg-white rounded-xl border border-gray-200 p-6">
+                                            <div className="h-24 bg-gray-100 rounded-lg mb-3" />
+                                            <p className="font-bold">Store #{i}</p>
+                                            <p className="text-sm text-gray-600">Status: Active</p>
+                                            <div className="mt-3 flex gap-2">
+                                                <button className="px-3 py-2 rounded-lg bg-blue-600 text-white text-sm">View</button>
+                                                <button className="px-3 py-2 rounded-lg bg-red-600 text-white text-sm">Freeze</button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                        {activeTab === 'social' && (
+                            <div className="space-y-6">
+                                <h2 className="text-2xl font-bold text-gray-800">Social Pages</h2>
+                                <div className="bg-white rounded-xl border border-gray-200 p-6">
+                                    <div className="space-y-3">
+                                        {['Instagram','WhatsApp Business','Facebook Marketplace'].map((platform, idx) => (
+                                            <div key={idx} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border">
+                                                <div>
+                                                    <p className="font-semibold">{platform}</p>
+                                                    <p className="text-xs text-gray-600">Connected pages appear here</p>
+                                                </div>
+                                                <div className="flex gap-2">
+                                                    <button className="px-3 py-2 rounded-lg bg-blue-600 text-white text-sm">View</button>
+                                                    <button className="px-3 py-2 rounded-lg bg-gray-200 text-gray-800 text-sm">Rescan</button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                        {activeTab === 'settings' && (
+                            <div className="space-y-6">
+                                <h2 className="text-2xl font-bold text-gray-800">Platform Settings</h2>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    {/* Security Settings */}
+                                    <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 space-y-4">
+                                        <div className="flex items-center gap-3 pb-4 border-b border-gray-200">
+                                            <Lock className="text-green-600" size={24} />
+                                            <h3 className="text-lg font-bold text-gray-800">Security</h3>
+                                        </div>
+                                        <div className="space-y-3">
+                                            <button className="w-full px-4 py-3 bg-gray-50 hover:bg-gray-100 rounded-lg border border-gray-200 text-left text-sm font-medium text-gray-700 transition">
+                                                Change Admin Password
+                                            </button>
+                                            <button className="w-full px-4 py-3 bg-gray-50 hover:bg-gray-100 rounded-lg border border-gray-200 text-left text-sm font-medium text-gray-700 transition">
+                                                Enable Two-Factor Authentication
+                                            </button>
+                                            <button className="w-full px-4 py-3 bg-gray-50 hover:bg-gray-100 rounded-lg border border-gray-200 text-left text-sm font-medium text-gray-700 transition">
+                                                Manage Session Tokens
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {/* API Keys */}
+                                    <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 space-y-4">
+                                        <div className="flex items-center gap-3 pb-4 border-b border-gray-200">
+                                            <Key className="text-blue-600" size={24} />
+                                            <h3 className="text-lg font-bold text-gray-800">API Keys</h3>
+                                        </div>
+                                        <div className="space-y-3">
+                                            <button className="w-full px-4 py-3 bg-gray-50 hover:bg-gray-100 rounded-lg border border-gray-200 text-left text-sm font-medium text-gray-700 transition">
+                                                Generate New API Key
+                                            </button>
+                                            <button className="w-full px-4 py-3 bg-gray-50 hover:bg-gray-100 rounded-lg border border-gray-200 text-left text-sm font-medium text-gray-700 transition">
+                                                Revoke API Keys
+                                            </button>
+                                            <button className="w-full px-4 py-3 bg-gray-50 hover:bg-gray-100 rounded-lg border border-gray-200 text-left text-sm font-medium text-gray-700 transition">
+                                                View API Documentation
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {/* Database Settings */}
+                                    <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 space-y-4">
+                                        <div className="flex items-center gap-3 pb-4 border-b border-gray-200">
+                                            <Database className="text-purple-600" size={24} />
+                                            <h3 className="text-lg font-bold text-gray-800">Database</h3>
+                                        </div>
+                                        <div className="space-y-3">
+                                            <button className="w-full px-4 py-3 bg-gray-50 hover:bg-gray-100 rounded-lg border border-gray-200 text-left text-sm font-medium text-gray-700 transition">
+                                                Database Status
+                                            </button>
+                                            <button className="w-full px-4 py-3 bg-gray-50 hover:bg-gray-100 rounded-lg border border-gray-200 text-left text-sm font-medium text-gray-700 transition">
+                                                Backup Database
+                                            </button>
+                                            <button className="w-full px-4 py-3 bg-gray-50 hover:bg-gray-100 rounded-lg border border-gray-200 text-left text-sm font-medium text-gray-700 transition">
+                                                View Database Logs
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {/* System Information */}
+                                    <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 space-y-4">
+                                        <div className="flex items-center gap-3 pb-4 border-b border-gray-200">
+                                            <Shield className="text-green-600" size={24} />
+                                            <h3 className="text-lg font-bold text-gray-800">System</h3>
+                                        </div>
+                                        <div className="space-y-3 text-sm">
+                                            <div className="flex justify-between">
+                                                <span className="text-gray-600">Platform Version</span>
+                                                <span className="font-semibold text-gray-900">1.0.0</span>
+                                            </div>
+                                            <div className="flex justify-between">
+                                                <span className="text-gray-600">Status</span>
+                                                <span className="font-semibold text-green-600">Operational</span>
+                                            </div>
+                                            <div className="flex justify-between">
+                                                <span className="text-gray-600">Last Updated</span>
+                                                <span className="font-semibold text-gray-900">{new Date().toLocaleDateString()}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </main>
+            </div>
+        </div>
+    );
+}
