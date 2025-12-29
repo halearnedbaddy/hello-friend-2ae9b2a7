@@ -55,15 +55,17 @@ export function useBuyerData() {
       ]);
 
       if (ordersRes.success && ordersRes.data) {
-        const ordersData = Array.isArray(ordersRes.data) ? ordersRes.data : ordersRes.data.orders || [];
+        const data = ordersRes.data as BuyerOrder[] | { orders?: BuyerOrder[] };
+        const ordersData = Array.isArray(data) ? data : data.orders || [];
         setOrders(ordersData);
       }
       if (disputesRes.success && disputesRes.data) {
-        const disputesData = Array.isArray(disputesRes.data) ? disputesRes.data : disputesRes.data.disputes || [];
+        const data = disputesRes.data as BuyerDispute[] | { disputes?: BuyerDispute[] };
+        const disputesData = Array.isArray(data) ? data : data.disputes || [];
         setDisputes(disputesData);
       }
       if (walletRes.success && walletRes.data) {
-        setWallet(walletRes.data);
+        setWallet(walletRes.data as BuyerWallet);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch buyer data');

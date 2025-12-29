@@ -344,6 +344,7 @@ model RefreshToken {
   ipAddress String?
   expiresAt DateTime
   isRevoked Boolean  @default(false)
+  revokedAt DateTime?
   createdAt DateTime @default(now())
 
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -353,14 +354,16 @@ model RefreshToken {
 }
 
 model OTP {
-  id        String   @id @default(uuid())
-  phone     String
-  code      String
-  purpose   String   // LOGIN, REGISTRATION, PASSWORD_RESET, VERIFICATION
-  attempts  Int      @default(0)
-  verified  Boolean  @default(false)
-  expiresAt DateTime
-  createdAt DateTime @default(now())
+  id          String   @id @default(uuid())
+  phone       String
+  code        String
+  purpose     String   // LOGIN, REGISTRATION, PASSWORD_RESET, VERIFICATION
+  attempts    Int      @default(0)
+  maxAttempts Int      @default(3)
+  isUsed      Boolean  @default(false)
+  usedAt      DateTime?
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
 
   @@index([phone, purpose])
   @@index([expiresAt])

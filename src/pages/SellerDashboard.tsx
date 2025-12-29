@@ -32,14 +32,6 @@ interface Transaction {
   date: string;
 }
 
-interface SocialLink {
-  icon: string;
-  name: string;
-  handle: string;
-  followers: string;
-  connected: boolean;
-}
-
 interface WalletData {
   available: number;
   pending: number;
@@ -63,12 +55,6 @@ export function SellerDashboard() {
   // Empty data states - ready for API integration
   const [orders] = useState<Order[]>([]);
   const [transactions] = useState<Transaction[]>([]);
-  const [socialLinks] = useState<SocialLink[]>([
-    { icon: '📸', name: 'Instagram', handle: '', followers: '', connected: false },
-    { icon: '💬', name: 'WhatsApp Business', handle: '', followers: '', connected: false },
-    { icon: '👍', name: 'Facebook Marketplace', handle: '', followers: '', connected: false },
-    { icon: '📌', name: 'TikTok Shop', handle: 'Coming Soon', followers: '', connected: false },
-  ]);
   const [wallet] = useState<WalletData>({ available: 0, pending: 0, total: 0 });
   const [profile] = useState<SellerProfile>({ name: 'Seller', verified: false, memberSince: '', isActive: false });
 
@@ -302,7 +288,6 @@ export function SellerDashboard() {
 
   // WALLET TAB
   const [paymentMethods, setPaymentMethods] = useState<any[]>([]);
-  const [paymentMethodsLoading, setPaymentMethodsLoading] = useState(false);
   const [showAddPayoutMethod, setShowAddPayoutMethod] = useState(false);
   const [payoutForm, setPayoutForm] = useState({
     type: 'MOBILE_MONEY',
@@ -315,12 +300,10 @@ export function SellerDashboard() {
   useEffect(() => {
     async function loadPaymentMethods() {
       if (activeTab === 'wallet') {
-        setPaymentMethodsLoading(true);
         const res = await api.getPaymentMethods();
         if (res.success && res.data) {
           setPaymentMethods(Array.isArray(res.data) ? res.data : []);
         }
-        setPaymentMethodsLoading(false);
       }
     }
     loadPaymentMethods();

@@ -1,4 +1,4 @@
-import { TrendingUp, Users, AlertTriangle, DollarSign, Activity, Loader } from 'lucide-react';
+import { Users, AlertTriangle, DollarSign, Activity, Loader } from 'lucide-react';
 import { useAdminData } from '@/hooks/useAdminData';
 
 export function AdminOverview() {
